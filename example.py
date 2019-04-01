@@ -1,4 +1,5 @@
 import os
+import errno
 import pybullet as p
 import time
 import math
@@ -31,7 +32,7 @@ class KinovaSim(object):
         p.setGravity(0, 0, -10)
 
         # load arm
-        model_path = "models/jaco_robotiq/jaco_robotiq_object.urdf"
+        model_path = "jaco_robotiq_object.urdf"
         arm_id = p.loadURDF(model_path, [0, 0, 0], useFixedBase=True)
 
         # variables specific to this arm
