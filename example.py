@@ -1,4 +1,49 @@
+#!/usr/bin/env python
+#
+# Copyright (c) 2018 Adam Allevato, The University of Texas at Austin
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# * Redistributions of source code must retain the above copyright notice, this
+#   list of conditions and the following disclaimer.
+#
+# * Redistributions in binary form must reproduce the above copyright notice,
+#   this list of conditions and the following disclaimer in the documentation
+#   and/or other materials provided with the distribution.
+#
+# * Neither the name of the SIM Lab nor the names of its
+#   contributors may be used to endorse or promote products derived from
+#   this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+# Example of PyBullet Kinova Jaco sim and environment. This script moves the
+# EEF in a circle and prints out the joint torques to a file, and repeats this
+# 10 times with different object mass held in the EEF.
+#
+# Requirements
+#   Python 3.5+ (I think that should be the min version)
+#   Dependencies:
+#     pybullet
+#     matplotlib
+#     numpy
+# Usage:
+#   ./example.py - Default usage (headless)
+#   ./example.py debug - Run with PyBullet GUI window visible.
+
 import os
+import sys
 import errno
 import pybullet as p
 import time
@@ -7,10 +52,8 @@ from math import pi
 import matplotlib.pyplot as plt
 import numpy as np
 
-DEBUG = False
-# Set DEBUG = True to enable GUI rendering in PyBullet
-# DEBUG = True
-
+# Set debug = True to enable GUI rendering in PyBullet
+DEBUG_DEFAULT = False
 
 class KinovaSim(object):
     def __enter__(self):
@@ -19,12 +62,15 @@ class KinovaSim(object):
     def __exit__(self, exc_type, exc_val, exc_tb):
         return
 
+    def __init__(self, debug=DEBUG_DEFAULT):
+        self.debug = debug
+
     def run(self, theta):
         # load arguments
         block_mass, = theta
 
         # connect and configure sim
-        if DEBUG:
+        if self.debug:
             p.connect(p.GUI)
         else:
             p.connect(p.DIRECT)
@@ -81,7 +127,7 @@ class KinovaSim(object):
         for steps in range(240 * len_seconds + burn_in):
             p.stepSimulation()
             t += 0.005
-            if DEBUG:
+            if self.debug:
                 time.sleep(1 / 240)
 
             # move the arm
@@ -134,33 +180,34 @@ def makedirs(directory):
 
 
 def main():
+    debug = DEBUG_DEFAULT
+    if len(sys.argv) > 1:
+        if sys.argv[1] == "debug":
+            debug = True
+        else:
+            print("Argument not recognized. You can pass the argument 'debug'")
+            exit(0)
+
     dataset_types = ["test"]
-    dataset_sizes = [300]
+    dataset_sizes = [10]
     for dataset_size, dataset_type in zip(dataset_sizes, dataset_types):
-        print("saving dataset type " + dataset_type)
+        print("Running")
         overall_start_time = time.time()
         for i in range(dataset_size):
             start_time = time.time()
             datapoint_dir = "example_output/{}/{}".format(dataset_type, i)
             makedirs(datapoint_dir)
-            mass1 = [np.random.random()]
-            with KinovaSim() as ks:
-                torques1 = ks.run(theta=mass1)
 
-            mass2 = [np.random.random()]
-            if dataset_type == "test":
-                mass2[0] += 1
-            with KinovaSim() as ks:
-                torques2 = ks.run(theta=mass2)
+            mass1 = [np.random.random()]
+            with KinovaSim(debug) as ks:
+                torques1 = ks.run(theta=mass1)
 
             # save out the data
             np.save(os.path.join(datapoint_dir, "mass1.npy"), mass1, allow_pickle=False)
-            np.save(os.path.join(datapoint_dir, "mass2.npy"), mass2, allow_pickle=False)
             np.save(os.path.join(datapoint_dir, "torques1.npy"), torques1, allow_pickle=False)
-            np.save(os.path.join(datapoint_dir, "torques2.npy"), torques2, allow_pickle=False)
 
             now = time.time()
-            print("completed run {}. Elapsed time: {} Total: {}".format(i, now - start_time, now - overall_start_time))
+            print("completed run {:03d}. Elapsed time: {:.2f}s Total: {:.2f}s".format(i+1, now - start_time, now - overall_start_time))
 
 
 if __name__ == "__main__":
